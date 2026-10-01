@@ -67,7 +67,9 @@ if (-not $SkipInstaller) {
         "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
     ) | Where-Object { $_ -and (Test-Path $_) }
     if ($isccCandidates) {
-        $iscc = $isccCandidates[0]
+        # 经 Where-Object 过滤后只剩一个匹配时结果是标量字符串，[0] 会取到首字符
+        #（本机实测 $iscc = "C"）——@() 强制数组后再取第一个
+        $iscc = @($isccCandidates)[0]
         Write-Host "使用 ISCC：$iscc" -ForegroundColor Cyan
         & $iscc "/DAppVersion=$version" (Join-Path $root "scripts\installer.iss")
         if ($LASTEXITCODE -ne 0) { throw "ISCC 编译失败" }

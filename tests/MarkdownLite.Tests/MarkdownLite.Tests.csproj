@@ -11,6 +11,12 @@
     <RootNamespace>MarkdownLite.Tests</RootNamespace>
     <!-- 与主项目一致：锁定依赖树，供 CI 以锁定模式校验 -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- 运行时标识符固定在工程里：CI、publish.ps1、release.ps1 都是 win-x64。
+         不固定的话，「普通还原（无 RID）」与「带 RID 还原」会产出两张不同的图，
+         packages.lock.json 在两者之间来回翻转，CI 的锁定模式还原就会随机报 NU1004。
+         固定后所有还原路径收敛到同一张图，锁文件不再抖动。 -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup>
 
   <ItemGroup>

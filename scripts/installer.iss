@@ -1,4 +1,4 @@
-; MarkdownLite 安装程序脚本（Inno Setup 6）
+﻿; MarkdownLite 安装程序脚本（Inno Setup 6）
 ;
 ; 产物形态：per-user 免管理员安装（与 associate-md.ps1 的 HKCU 关联理念一致），
 ;   默认安装到 %LOCALAPPDATA%\Programs\MarkdownLite，开始菜单快捷方式，
@@ -41,7 +41,7 @@ CloseApplications=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 
 [Languages]
-Name: "chineseSimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+; Inno 6.7 官方捆绑 29 种语言不含中文（中文翻译在社区，需单独分发 isl 后再启用双语）
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
