@@ -61,7 +61,9 @@ jobs:
     name: 公开子集校验
     runs-on: windows-latest
     needs: []
-    if: (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main') && hashFiles('scripts/sync-public.ps1') != ''
+    # hashFiles 不能用于 job 级 if（只允许 step 级，用了整个 workflow 解析失败——实测踩到）；
+    # 改用仓库名后缀区分：公开仓库 markdown-lite（无 sync-public.ps1）自动跳过，含 fork
+    if: (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main') && endsWith(github.repository, '/markdown-lite')
 
     steps:
       - name: 检出
@@ -114,8 +116,8 @@ jobs:
           if-no-files-found: error
 
       - name: 创建 GitHub Release（仅公开仓库）
-        # 公开仓库不含 scripts/sync-public.ps1（私有侧工具），以此区分两仓，避免写入 owner 用户名
-        if: startsWith(github.ref, 'refs/tags/v') && hashFiles('scripts/sync-public.ps1') == ''
+        # 与 public-subset-check 同理：endswith 区分两仓，避免写入 owner 用户名
+        if: startsWith(github.ref, 'refs/tags/v') && endsWith(github.repository, '/markdown-lite')
         uses: softprops/action-gh-release@v2
         with:
           files: |
