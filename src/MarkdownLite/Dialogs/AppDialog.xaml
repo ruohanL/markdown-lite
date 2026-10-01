@@ -1,0 +1,152 @@
+<Window x:Class="MarkdownLite.Dialogs.AppDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MarkdownLite"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" SizeToContent="WidthAndHeight"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        UseLayoutRounding="True" SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="Grayscale"
+        FontFamily="{DynamicResource UiFont}"
+        Foreground="{DynamicResource Brush.Text}"
+        PreviewKeyDown="OnPreviewKeyDown">
+
+    <!-- 外边距留给投影，否则阴影会被窗口边界裁掉 -->
+    <Grid x:Name="Card" Margin="20" Opacity="0">
+
+        <Border Background="{DynamicResource Brush.Menu}"
+                BorderBrush="{DynamicResource Brush.Border}"
+                BorderThickness="1" CornerRadius="12"
+                MinWidth="340" MaxWidth="520">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="22" ShadowDepth="3" Opacity="0.28" Color="#000000" />
+            </Border.Effect>
+
+            <DockPanel LastChildFill="True">
+
+                <!-- ============ 头部：图标 + 标题 / 副标题 + 关闭 ============ -->
+                <Grid DockPanel.Dock="Top" Height="52" Background="Transparent"
+                      MouseLeftButtonDown="OnHeaderDrag">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 「关于」显示真实应用图标（与顶栏、exe 同源）；错误弹窗换成描边块里的「!」，
+                         项目禁用 emoji，两个元素同尺寸互斥显示，由 ApplyKind 切换。
+                         注意 Source 必须写成以 / 开头的「应用根」路径：本文件在 Dialogs\ 子目录，
+                         写成 "app-icon.png" 会被解析成 /Dialogs/app-icon.png，图标静默不显示。 -->
+                    <Grid Grid.Column="0" Width="28" Height="28" Margin="16,0,0,0"
+                          VerticalAlignment="Center">
+                        <Image x:Name="IconImage" Width="28" Height="28"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Source="/app-icon.png" />
+                        <Border x:Name="IconBadge" CornerRadius="8" Visibility="Collapsed"
+                                BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+                            <TextBlock x:Name="IconGlyph" Text="!" FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Brush.Text}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </Grid>
+
+                    <StackPanel Grid.Column="1" Margin="11,0,10,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="TitleText" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Brush.Text}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="SubtitleText" Margin="0,2,0,0" FontSize="11.5"
+                                   Foreground="{DynamicResource Brush.TextDim}"
+                                   TextTrimming="CharacterEllipsis" Visibility="Collapsed" />
+                    </StackPanel>
+
+                    <Button Grid.Column="2" Style="{StaticResource CaptionButton}"
+                            Click="OnCloseClick" ToolTip="关闭"
+                            AutomationProperties.Name="关闭">
+                        <Path Width="9" Height="9" Stretch="None"
+                              Stroke="{DynamicResource Brush.Text}" StrokeThickness="1.1"
+                              Data="M1,1 L8,8 M8,1 L1,8" />
+                    </Button>
+                </Grid>
+
+                <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource Brush.Border}" />
+
+                <!-- ============ 底部按钮 ============ -->
+                <!-- 必须排在正文之前：DockPanel 的 LastChildFill 会让「最后一个子元素」无视
+                     Dock 去填满剩余空间，正文才应该是那个填充元素 -->
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                            HorizontalAlignment="Right" Margin="16,6,16,14">
+                    <Button x:Name="SecondaryButton" Style="{StaticResource DialogButton}"
+                            Click="OnSecondaryClick" Visibility="Collapsed" />
+                    <Button x:Name="PrimaryButton" Style="{StaticResource DialogPrimaryButton}"
+                            Click="OnPrimaryClick" IsDefault="True" />
+                </StackPanel>
+
+                <!-- ============ 正文：分节 + 键值行（最后一个子元素，自动填满） ============ -->
+                <ScrollViewer Margin="16,13,16,3" MaxHeight="400"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer.Resources>
+                        <Style TargetType="ScrollBar" BasedOn="{StaticResource ThinScrollBar}" />
+                    </ScrollViewer.Resources>
+                    <ItemsControl x:Name="SectionsHost">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,12">
+                                    <!-- 节标题（Heading 为空时整行折叠） -->
+                                    <TextBlock Text="{Binding Heading}" Margin="0,0,0,5"
+                                               FontWeight="SemiBold" FontSize="11.5"
+                                               Foreground="{DynamicResource Brush.TextDim}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Heading}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+
+                                    <ItemsControl ItemsSource="{Binding Rows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,0,0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <!-- 左栏键名（Key 为空时整列收缩为 0） -->
+                                                    <TextBlock Grid.Column="0" Text="{Binding Key}"
+                                                               Margin="0,0,14,0" VerticalAlignment="Top"
+                                                               FontSize="13"
+                                                               Foreground="{DynamicResource Brush.TextDim}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Key}" Value="">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+
+                                                    <TextBlock Grid.Column="1" Text="{Binding Text}"
+                                                               FontSize="13" LineHeight="19"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource Brush.Text}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

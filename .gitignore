@@ -1,0 +1,23 @@
+# .NET
+bin/
+obj/
+publish/
+artifacts/
+.dotnet/
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+.idea/
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Python
+__pycache__/
+
+# 本地预览产物（scripts/make-icon.py --preview）
+preview/

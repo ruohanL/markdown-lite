@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: 构建与测试（Windows）
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: 还原（锁定文件校验）
+        # 带 -r win-x64：packages.lock.json 提交版记录的就是 win-x64 还原段，
+        # 与发布链路（publish.ps1 / release.ps1 均 -r win-x64）保持同一基准
+        run: dotnet restore MarkdownLite.sln --locked-mode -r win-x64
+
+      # 项目约定：构建必须 0 警告，因此把警告提升为错误
+      - name: 构建
+        run: dotnet build MarkdownLite.sln -c Release --no-restore -warnaserror
+
+      - name: 测试
+        run: dotnet test MarkdownLite.sln -c Release --no-build --logger "console;verbosity=normal"
+
+      # 页面侧脚本没有编译期检查，这里补一道语法门禁
+      - name: 校验前端脚本语法
+        run: node --check src/MarkdownLite/wwwroot/reader.js
+
+      - name: 单文件发布（验证发布链路可用）
+        run: pwsh scripts/publish.ps1 -OutputDir artifacts
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: MarkdownLite-win-x64
+          path: artifacts/MarkdownLite.exe
+          if-no-files-found: error
+
+  # 公开子集门禁：证明「从本仓库可完整生成 public/」，且结构完整、无隐私泄漏。
+  # public/ 本身不入库（.gitignore 排除），所以这里只生成到临时目录做校验，不上传。
+  # 维护者专用：公开子集里不含 scripts/sync-public.ps1，故该 job 在 fork/公开仓库自动跳过。
+  public-subset-check:
+    name: 公开子集校验
+    runs-on: windows-latest
+    needs: []
+    if: hashFiles('scripts/sync-public.ps1') != ''
+
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: 生成并校验公开子集（结构清单 + 隐私扫描）
+        run: pwsh scripts/sync-public.ps1 -OutDir "${env:RUNNER_TEMP}\public-check" -SkipCompare
+
+  # 发行资产：便携版单文件 + Inno Setup 安装程序 + SHA256 校验和。
+  # 触发：v* 标签推送或手动。资产内容对两个仓库完全一致（scripts/release.ps1 是同一份）；
+  # 只有 markdown-lite 公开仓库会创建正式 Release（私有仓库仅上传 artifact，不发对外版本）。
+  release:
+    name: 发行资产（安装程序 + 便携版）
+    runs-on: windows-latest
+    needs: []
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
+
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: 读取版本号（真源：csproj）
+        id: ver
+        shell: pwsh
+        run: |
+          $v = ([regex]::Match((Get-Content src/MarkdownLite/MarkdownLite.csproj -Raw), '<Version>([^<]+)</Version>')).Groups[1].Value.Trim()
+          if (-not $v) { throw "csproj 中没有 <Version>" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: 安装 Inno Setup（安装程序构建依赖）
+        run: choco install innosetup -y --no-progress
+
+      - name: 产出发行资产
+        run: pwsh scripts/release.ps1 -OutputDir release
+
+      - name: 上传发行资产
+        uses: actions/upload-artifact@v4
+        with:
+          name: MarkdownLite-release-v${{ steps.ver.outputs.version }}
+          path: |
+            release/*.exe
+            release/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: 创建 GitHub Release（仅公开仓库）
+        # 公开仓库不含 scripts/sync-public.ps1（私有侧工具），以此区分两仓，避免写入 owner 用户名
+        if: startsWith(github.ref, 'refs/tags/v') && hashFiles('scripts/sync-public.ps1') == ''
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.exe
+            release/SHA256SUMS.txt
+          generate_release_notes: true

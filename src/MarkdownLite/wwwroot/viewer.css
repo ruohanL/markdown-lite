@@ -1,0 +1,269 @@
+/* MarkdownLite 阅读样式 —— 浅色：黑白灰；深色：现代低对比配色
+   （#161616 底 / #2b2b2b 卡片 / rgba(255,255,255,.1) 描边 / #d4d4d4 文本 / #80beff 链接）
+
+   ⚠ --bg 必须与 WPF 侧的 Brush.Window 保持一致（浅 #ffffff / 暗 #1e1e1e），
+   否则阅读区与标题栏/菜单栏/目录栏之间会出现色带。
+
+   ⚠ 另外：阅读区底色**不能只靠这里**。WebView2 会按 URL 缓存 viewer.css，
+   改了这个文件旧缓存可能继续生效（实测踩到）。所以 MarkdownRenderer 生成的文档里
+   还有一段**内联**的、显式的同名规则兜底 —— 文档 URL 带 ?v=ticks 永不缓存，
+   那段一定是最新的。改颜色时**两处都要改**。 */
+
+:root {
+    --bg: #ffffff;
+    --fg: #1b1b1f;
+    --fg-dim: #6e6e76;
+    --fg-dim2: #9a9aa2;
+    --border: #e2e2e6;
+    --border-soft: #ececf0;
+    --heading-rule: #e2e2e6;
+    --card: #f7f7f9;
+    --code-bg: #f4f4f6;
+    --pre-bg: #f7f7f9;
+    --quote-bar: #c9c9cf;
+    --quote-bg: rgba(255, 255, 255, 0.72);
+    --link: #33517b;
+    --table-head: #f4f4f6;
+    --table-stripe: #f6f6f8;
+    --selection: #cfe3ff;
+    --glass: rgba(255, 255, 255, 0.72);
+    --scrollbar: rgba(0, 0, 0, 0.18);
+    --scrollbar-hover: rgba(0, 0, 0, 0.3);
+    --hit: rgba(255, 214, 92, 0.42);
+    --hit-current: #e8a013;
+    --hit-current-fg: #1b1b1f;
+    color-scheme: light;
+}
+
+html[data-theme="dark"] {
+    --bg: #1e1e1e;
+    --fg: #d4d4d4;
+    --fg-dim: rgba(212, 212, 212, 0.6);
+    --fg-dim2: rgba(212, 212, 212, 0.4);
+    --border: rgba(255, 255, 255, 0.1);
+    --border-soft: rgba(255, 255, 255, 0.06);
+    --heading-rule: rgba(255, 255, 255, 0.08);
+    --card: #2b2b2b;
+    --code-bg: rgba(255, 255, 255, 0.08);
+    --pre-bg: #2b2b2b;
+    --quote-bar: rgba(255, 255, 255, 0.18);
+    --quote-bg: transparent;
+    --link: #80beff;
+    --table-head: #2b2b2b;
+    --table-stripe: rgba(255, 255, 255, 0.02);
+    --selection: #001d3d;
+    --glass: rgba(255, 255, 255, 0.05);
+    --scrollbar: rgba(255, 255, 255, 0.1);
+    --scrollbar-hover: rgba(255, 255, 255, 0.18);
+    --hit: rgba(240, 180, 60, 0.26);
+    --hit-current: #f0b429;
+    --hit-current-fg: #161616;
+    color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+    html[data-theme="auto"] {
+        --bg: #1e1e1e;
+        --fg: #d4d4d4;
+        --fg-dim: rgba(212, 212, 212, 0.6);
+        --fg-dim2: rgba(212, 212, 212, 0.4);
+        --border: rgba(255, 255, 255, 0.1);
+        --border-soft: rgba(255, 255, 255, 0.06);
+        --heading-rule: rgba(255, 255, 255, 0.08);
+        --card: #2b2b2b;
+        --code-bg: rgba(255, 255, 255, 0.08);
+        --pre-bg: #2b2b2b;
+        --quote-bar: rgba(255, 255, 255, 0.18);
+        --quote-bg: transparent;
+        --link: #80beff;
+        --table-head: #2b2b2b;
+        --table-stripe: rgba(255, 255, 255, 0.02);
+        --selection: #001d3d;
+        --glass: rgba(255, 255, 255, 0.05);
+        --scrollbar: rgba(255, 255, 255, 0.1);
+        --scrollbar-hover: rgba(255, 255, 255, 0.18);
+        --hit: rgba(240, 180, 60, 0.26);
+        --hit-current: #f0b429;
+        --hit-current-fg: #161616;
+        color-scheme: dark;
+    }
+}
+
+* { box-sizing: border-box; }
+
+html { scrollbar-gutter: stable; }
+
+body.markdown-body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+}
+
+.markdown-body {
+    max-width: 52em;
+    margin: 0 auto;
+    padding: 2.5em 2em 6em;
+}
+
+::selection { background: var(--selection); }
+
+/* ---------- 页内搜索命中（Ctrl+F） ---------- */
+mark.mdreader-hit {
+    background: var(--hit);
+    color: inherit;
+    border-radius: 3px;
+    padding: 0 1px;
+}
+mark.mdreader-hit-current {
+    background: var(--hit-current);
+    color: var(--hit-current-fg);
+}
+
+/* ---------- 滚动条（细条 + 大圆角 + 透明描边） ---------- */
+::-webkit-scrollbar { width: 14px; height: 14px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    border: 4px solid transparent;
+    border-radius: 9999px;
+    background: var(--scrollbar);
+    background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); background-clip: padding-box; }
+
+/* ---------- 标题 ---------- */
+.markdown-body h1, .markdown-body h2, .markdown-body h3,
+.markdown-body h4, .markdown-body h5, .markdown-body h6 {
+    margin: 1.6em 0 0.6em;
+    line-height: 1.35;
+    font-weight: 650;
+    scroll-margin-top: 0.5em;
+}
+.markdown-body h1 { font-size: 1.9em; margin-top: 0.2em; padding-bottom: 0.3em; border-bottom: 1px solid var(--heading-rule); }
+.markdown-body h2 { font-size: 1.5em; padding-bottom: 0.25em; border-bottom: 1px solid var(--heading-rule); }
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1.08em; }
+.markdown-body h5, .markdown-body h6 { font-size: 1em; color: var(--fg-dim); }
+
+/* ---------- 段落与常见元素 ---------- */
+.markdown-body p { margin: 0.8em 0; }
+.markdown-body a { color: var(--link); text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 700; }
+.markdown-body del { color: var(--fg-dim); }
+.markdown-body hr { border: 0; border-top: 1px solid var(--border); margin: 2em 0; }
+
+.markdown-body img {
+    max-width: 100%;
+    border-radius: 10px;
+    border: 1px solid var(--border-soft);
+}
+
+/* ---------- 列表 / 任务列表 ---------- */
+.markdown-body ul, .markdown-body ol { padding-left: 1.7em; margin: 0.7em 0; }
+.markdown-body li { margin: 0.25em 0; }
+.markdown-body li > input[type="checkbox"] {
+    margin-right: 0.5em;
+    accent-color: var(--fg);
+    transform: translateY(1px);
+}
+
+/* ---------- 引用：低对比、纯左边线 ---------- */
+.markdown-body blockquote {
+    margin: 1em 0;
+    padding: 0.2em 0 0.2em 1.1em;
+    color: var(--fg-dim);
+    border-left: 2px solid var(--quote-bar);
+    background: var(--quote-bg);
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child { margin-bottom: 0; }
+
+/* ---------- 代码 ---------- */
+.markdown-body code {
+    font-family: "Cascadia Code", Consolas, "Microsoft YaHei UI", "Courier New", monospace;
+    font-size: 0.9em;
+    background: var(--code-bg);
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    padding: 0.12em 0.4em;
+}
+.markdown-body pre {
+    background: var(--pre-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0;
+    margin: 1.1em 0;
+    overflow: hidden;
+}
+.markdown-body pre code {
+    display: block;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 1em 1.2em;
+    font-size: 0.86em;
+    line-height: 1.6;
+    white-space: pre;
+    overflow-x: auto;
+}
+
+/* ---------- 表格 ---------- */
+.markdown-body table {
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 1.2em 0;
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+.markdown-body th, .markdown-body td {
+    border-bottom: 1px solid var(--border-soft);
+    border-right: 1px solid var(--border-soft);
+    padding: 0.45em 0.9em;
+}
+.markdown-body th:last-child, .markdown-body td:last-child { border-right: 0; }
+.markdown-body tr:last-child th, .markdown-body tr:last-child td { border-bottom: 0; }
+.markdown-body th { background: var(--table-head); font-weight: 650; color: var(--fg); }
+.markdown-body tbody tr:nth-child(2n) { background: var(--table-stripe); }
+
+/* ---------- 脚注 ---------- */
+.markdown-body .footnotes {
+    margin-top: 3em;
+    padding-top: 1em;
+    border-top: 1px solid var(--border);
+    font-size: 0.88em;
+    color: var(--fg-dim);
+}
+.markdown-body sup a { text-decoration: none; }
+
+/* ---------- 欢迎页 ---------- */
+.welcome {
+    max-width: 34em;
+    margin: 12vh auto 0;
+    padding: 2em 2.4em;
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    backdrop-filter: blur(12px);
+}
+.welcome h1 { font-size: 1.5em; margin: 0 0 0.4em; border: 0; padding: 0; }
+.welcome p { color: var(--fg-dim); margin: 0.3em 0 1.2em; }
+.welcome dl { display: grid; grid-template-columns: auto 1fr; gap: 0.45em 1.4em; margin: 0; }
+.welcome dt {
+    font-family: Consolas, monospace;
+    font-size: 0.86em;
+    background: var(--code-bg);
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    padding: 0.05em 0.5em;
+    justify-self: start;
+    white-space: nowrap;
+}
+.welcome dd { margin: 0; color: var(--fg-dim); }

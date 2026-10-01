@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html data-theme="auto" lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'none'; script-src 'self'; font-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+<title>MarkdownLite</title>
+<link rel="stylesheet" href="viewer.css" />
+<!-- 阅读区底色：与 MarkdownRenderer 注入的那段保持一致的显式写法（不依赖页面透明）。
+     style-src 必须带 'unsafe-inline'，否则这段内联样式会被 CSP 拦掉。
+     颜色要与 WPF 侧的 Brush.Window 对齐：浅 #ffffff / 暗 #1e1e1e。 -->
+<style>html,body{background-color:#ffffff !important;margin:0;padding:0;}</style>
+<style>html[data-theme="dark"],html[data-theme="dark"] body{background-color:#1e1e1e !important;}</style>
+<style>@media (prefers-color-scheme:dark){html[data-theme="auto"],html[data-theme="auto"] body{background-color:#1e1e1e !important;}}</style>
+<!-- 加载受控脚本，使宿主可调用 mdApplyTheme 让欢迎页跟随应用主题（而非仅系统主题） -->
+<script src="reader.js"></script>
+</head>
+<body class="markdown-body">
+<div class="welcome">
+    <h1>MarkdownLite</h1>
+    <p>Markdown阅读器。极速，快，轻量，仅只读，无联网</p>
+    <dl>
+        <dt>Ctrl + O</dt><dd>打开 .md 文件</dd>
+        <dt>拖拽</dt><dd>将 Markdown 文件拖入窗口直接阅读</dd>
+        <dt>F5</dt><dd>重新读取当前文件</dd>
+        <dt>Ctrl + / Ctrl -</dt><dd>放大 / 缩小</dd>
+        <dt>Ctrl + 0</dt><dd>重置缩放</dd>
+        <dt>Ctrl + T</dt><dd>显示 / 隐藏目录侧栏</dd>
+        <dt>命令行</dt><dd>MarkdownLite.exe "C:\path\file.md"</dd>
+    </dl>
+</div>
+</body>
+</html>

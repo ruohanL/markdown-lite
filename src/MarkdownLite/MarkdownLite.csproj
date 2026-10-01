@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- 仅为 System.Windows.Forms.DataObject 安全解析拖放 CF_HDROP；不新建任何 WinForms 窗口 -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>MarkdownLite</AssemblyName>
+    <RootNamespace>MarkdownLite</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <Authors>MarkdownLite Contributors</Authors>
+    <Product>MarkdownLite</Product>
+    <Description>Just read. Fast, read-only Markdown viewer for Windows.</Description>
+    <Copyright>MIT License</Copyright>
+    <!-- 单文件发布相关默认值见 scripts/publish.ps1 -->
+    <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
+    <!-- 锁定依赖树，保证任何时候还原出的包版本一致 -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 移除 WinForms 隐式全局 using，避免与 WPF 的 Application/DragEventArgs/IDataObject/Color/SystemColors
+         等类型名冲突；FileDropTarget 内部用全限定名访问 System.Windows.Forms.DataObject -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Markdig" Version="0.34.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2592.51" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
+    <!-- 单文件发布（PublishSingleFile）会隐式注入 ILLink.Tasks；显式声明同版本，让
+         「单文件便携版」与「目录形态安装版」两种 publish 共用同一份 packages.lock.json
+         都能通过锁定模式还原（否则目录形态报 NU1004）。 -->
+    <PackageReference Include="Microsoft.NET.ILLink.Tasks" Version="8.0.31" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 离线 Web 资源（highlight.js / CSS / JS），随输出目录一起拷贝；
+         单文件发布时由 IncludeAllContentForSelfExtract 嵌入并在运行时自解压 -->
+    <Content Include="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 界面内嵌的应用图标位图：顶栏左上角与「关于」弹窗头部共用。
+         与 ApplicationIcon(app.ico) 同源，均由 scripts/make-icon.py 从 assets/app-icon.png 生成。
+         显式声明而不依赖隐式 glob，避免「改个文件位置图标就悄悄没了」 -->
+    <Resource Include="app-icon.png" />
+  </ItemGroup>
+
+</Project>

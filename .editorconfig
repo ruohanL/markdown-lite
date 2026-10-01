@@ -1,0 +1,40 @@
+# 适用整个仓库；IDE 与 dotnet format 均遵循此文件。
+
+root = true
+
+[*]
+charset = utf-8
+# 与仓库既有内容保持一致（历史上均为 LF）；避免无意义的行尾变更噪音
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+max_line_length = 140
+
+[*.{json,yml,yaml,xaml,csproj,props,targets}]
+indent_size = 2
+
+[*.{md,markdown}]
+trim_trailing_whitespace = false
+
+[*.{js,css,html}]
+indent_size = 4
+
+[*.cs]
+# using 顺序与位置
+dotnet_sort_system_directives_first = true
+csharp_using_directive_placement = outside_namespace:suggestion
+# 私有字段统一 _camelCase
+dotnet_naming_rule.private_fields_underscore.severity = suggestion
+dotnet_naming_rule.private_fields_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore.style = underscore_camel
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel.required_prefix = _
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+# 风格偏好（与现有代码保持一致）
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_namespace_declarations = file_scoped:suggestion
+dotnet_diagnostic.IDE0005.severity = suggestion

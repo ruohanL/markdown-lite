@@ -1,0 +1,353 @@
+<Window x:Class="MarkdownLite.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        xmlns:local="clr-namespace:MarkdownLite"
+        Title="MarkdownLite"
+        Width="794" Height="658" MinWidth="620" MinHeight="400"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Brush.Window}"
+        Foreground="{DynamicResource Brush.Text}"
+        TextOptions.TextFormattingMode="Display"
+        UseLayoutRounding="True"
+        AllowDrop="True"
+        Drop="OnWindowDrop"
+        DragOver="OnWindowDragOver">
+
+    <!-- 分层无边框（现代极简式）：标题行 / 菜单行 / 阅读区三层同色，无断层。
+         CaptionHeight=0 —— 整窗都算客户区，不做系统标题栏，拖动与双击最大化由
+         OnTitleBarMouseDown 自己处理（ResizeBorderThickness=6 仍保留原生边缘缩放）。
+         GlassFrameThickness=0 —— 关掉玻璃边框，窗口是纯平面实色，不再叠 Mica。 -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0"
+                      ResizeBorderThickness="6"
+                      CornerRadius="0"
+                      GlassFrameThickness="0"
+                      UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Window.InputBindings>
+        <KeyBinding Modifiers="Control" Key="O" Command="{x:Static local:MainWindow.OpenFileCommand}" />
+        <KeyBinding Key="F5" Command="{x:Static local:MainWindow.ReloadCommand}" />
+        <KeyBinding Modifiers="Alt" Key="Left" Command="{x:Static local:MainWindow.BackCommand}" />
+        <KeyBinding Modifiers="Control" Key="R" Command="{x:Static local:MainWindow.ReloadCommand}" />
+        <KeyBinding Modifiers="Control" Key="T" Command="{x:Static local:MainWindow.ToggleTocCommand}" />
+        <KeyBinding Modifiers="Control" Key="OemPlus" Command="{x:Static local:MainWindow.ZoomInCommand}" />
+        <KeyBinding Modifiers="Control" Key="Add" Command="{x:Static local:MainWindow.ZoomInCommand}" />
+        <KeyBinding Modifiers="Control" Key="OemMinus" Command="{x:Static local:MainWindow.ZoomOutCommand}" />
+        <KeyBinding Modifiers="Control" Key="Subtract" Command="{x:Static local:MainWindow.ZoomOutCommand}" />
+        <KeyBinding Modifiers="Control" Key="D0" Command="{x:Static local:MainWindow.ZoomResetCommand}" />
+        <KeyBinding Modifiers="Control" Key="NumPad0" Command="{x:Static local:MainWindow.ZoomResetCommand}" />
+        <KeyBinding Modifiers="Control" Key="F" Command="{x:Static local:MainWindow.FindCommand}" />
+        <KeyBinding Key="Escape" Command="{x:Static local:MainWindow.CloseFindCommand}" />
+    </Window.InputBindings>
+
+    <!-- 最大化时 WindowChrome 会溢出屏幕边缘，用 Margin 补偿 -->
+    <Border x:Name="RootBorder">
+        <Border.Style>
+            <Style TargetType="Border">
+                <Setter Property="Margin" Value="0" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}"
+                                 Value="Maximized">
+                        <Setter Property="Margin" Value="7" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+
+        <DockPanel LastChildFill="True">
+
+            <!-- ============ 第一行 · 标题栏（29px = 原 32 的 9/10）：图标 + 文件名 + 窗口按钮 ============
+                 本行用 Brush.TitleBar 单色（亮 #F0F3F9 / 暗 #262A32），比下面的菜单栏与阅读区
+                 略深一档，形成简洁式「标题栏 + 内容」的分层；除本行外全窗口统一 #FFFFFF。
+                 背景必须显式设色才会参与命中测试 —— CaptionHeight=0 之后
+                 没有系统标题栏兜底，空区域的按下事件得靠这一行自己接住才能拖动。 -->
+            <Grid DockPanel.Dock="Top" Height="29"
+                  Background="{DynamicResource Brush.TitleBar}"
+                  MouseLeftButtonDown="OnTitleBarMouseDown"
+                  MouseMove="OnTitleBarMouseMove"
+                  MouseLeftButtonUp="OnTitleBarMouseUp">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 左上角：真实应用图标位图（与 exe 图标同源）+ 当前文件名。
+                     文件名与右侧窗口按钮同一个 Brush.Text，视觉上连成一条基线。 -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                    <Image Width="16" Height="16" VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           Source="/app-icon.png" />
+                    <!-- 返回上一文档：有历史时才出现；模板触发器改悬停底色（坑 24：默认值写进 Setter，
+                         触发器 TargetName 才能覆盖）。按钮自身吞掉点击，不会触发标题栏拖动。 -->
+                    <Button x:Name="BackButton" Click="OnBackClick" Visibility="Collapsed"
+                            VerticalAlignment="Center" Margin="7,0,0,0" Width="26" Height="21"
+                            ToolTip="返回上一文档（Alt+←）" Focusable="False">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="bd" Background="Transparent" CornerRadius="3">
+                                    <Path Data="M 10.5,3.5 L 5.5,8 L 10.5,12.5"
+                                          Stroke="{DynamicResource Brush.Text}" StrokeThickness="1.6"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.Hover}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                    <TextBlock VerticalAlignment="Center" Margin="8,0,0,0"
+                               Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
+                               FontSize="13" Foreground="{DynamicResource Brush.Text}"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal"
+                            VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <Button Style="{StaticResource TitleBarButton}" Click="OnMinimizeClick"
+                            ToolTip="最小化" AutomationProperties.Name="最小化">
+                        <Path Width="10" Height="10" Stretch="None"
+                              Stroke="{DynamicResource Brush.Text}" StrokeThickness="1.1"
+                              Data="M0.75,5 L9.25,5" />
+                    </Button>
+                    <!-- 最大化 / 还原：用一个 Path，按 WindowState 切换几何形状。
+                         ⚠ 默认几何必须写在 Style 的 Setter 里，**不能写成元素上的 Data="…"**：
+                         WPF 的属性值优先级是「局部值 > 样式触发器」，一旦写成局部值，
+                         下面的 DataTrigger 就成了死代码，永远不生效。
+                         （原实现是两个 Path 叠着、靠 Visibility 切换，同样栽在这条规则上——
+                         第二个图形带着局部 Visibility="Hidden"，触发器想置 Visible 也压不过去，
+                          于是最大化后两个图形都不显示，按钮变成空白。） -->
+                    <Button x:Name="MaxRestoreButton" Style="{StaticResource TitleBarButton}"
+                            Click="OnMaxRestoreClick" ToolTip="最大化 / 还原">
+                        <Path Width="10" Height="10" Stretch="None"
+                              Stroke="{DynamicResource Brush.Text}" StrokeThickness="1.1"
+                              Fill="Transparent">
+                            <Path.Style>
+                                <Style TargetType="Path">
+                                    <Setter Property="Data"
+                                            Value="M1.25,1.25 L8.75,1.25 L8.75,8.75 L1.25,8.75 Z" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                     Value="Maximized">
+                                            <Setter Property="Data"
+                                                    Value="M3.25,3.25 L9.75,3.25 L9.75,9.75 L3.25,9.75 Z M1.25,3.25 L1.25,7.75" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Path.Style>
+                        </Path>
+                    </Button>
+                    <Button Style="{StaticResource TitleBarCloseButton}" Click="OnCloseClick"
+                            ToolTip="关闭" AutomationProperties.Name="关闭">
+                        <Path Width="10" Height="10" Stretch="None"
+                              Stroke="{DynamicResource Brush.Text}" StrokeThickness="1.1"
+                              Data="M1.25,1.25 L8.75,8.75 M8.75,1.25 L1.25,8.75" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- ============ 第二行 · 菜单栏（27px = 原 30 的 9/10，与标题栏同底色，无边框） ============ -->
+            <Border DockPanel.Dock="Top" Height="27" Background="Transparent" BorderThickness="0">
+                <Menu x:Name="MainMenu"
+                      Background="Transparent" BorderThickness="0"
+                      VerticalAlignment="Center" Margin="4,0,0,0">
+                    <MenuItem Header="文件(_F)">
+                        <MenuItem Header="打开(_O)…" Click="OnOpenClick" InputGestureText="Ctrl+O" />
+                        <MenuItem Header="重新加载(_R)" Click="OnReloadClick" InputGestureText="F5" />
+                        <MenuItem Header="返回上一文档(_B)" Click="OnBackClick" InputGestureText="Alt+←" />
+                        <MenuItem x:Name="MenuAutoReload" Header="文件变更时自动重载(_L)" IsCheckable="True"
+                                  StaysOpenOnClick="True" Checked="OnAutoReloadChecked" Unchecked="OnAutoReloadUnchecked" />
+                        <Separator />
+                        <MenuItem Header="退出(_X)" Click="OnExitClick" InputGestureText="Alt+F4" />
+                    </MenuItem>
+                    <MenuItem Header="视图(_V)">
+                        <MenuItem Header="主题(_T)">
+                            <MenuItem x:Name="MenuThemeSystem" Header="跟随系统" Click="OnThemeSystemClick" IsCheckable="True" />
+                            <MenuItem x:Name="MenuThemeLight" Header="浅色" Click="OnThemeLightClick" IsCheckable="True" />
+                            <MenuItem x:Name="MenuThemeDark" Header="深色" Click="OnThemeDarkClick" IsCheckable="True" />
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Header="放大" Click="OnZoomInClick" InputGestureText="Ctrl++" />
+                        <MenuItem Header="缩小" Click="OnZoomOutClick" InputGestureText="Ctrl+-" />
+                        <MenuItem Header="重置缩放" Click="OnZoomResetClick" InputGestureText="Ctrl+0" />
+                        <Separator />
+                        <MenuItem x:Name="MenuToc" Header="目录侧栏(_C)" IsCheckable="True"
+                                  StaysOpenOnClick="True" Checked="OnTocChecked" Unchecked="OnTocUnchecked"
+                                  InputGestureText="Ctrl+T" />
+                    </MenuItem>
+                    <MenuItem Header="帮助(_H)">
+                        <MenuItem Header="关于(_A)" Click="OnAboutClick" />
+                    </MenuItem>
+                </Menu>
+            </Border>
+
+            <!-- ============ 页内搜索栏 ============
+                 必须位于 WebView2 之外：WebView2 是原生子窗口（airspace），
+                 任何浮在它上方的 WPF 元素都会被遮挡，故搜索栏占独立布局行。
+                 （CaptionHeight 已为 0，不再是系统 caption 的一部分，
+                   IsHitTestVisibleInChrome 已无意义，一并去掉。） -->
+            <Border x:Name="SearchBar" DockPanel.Dock="Top" Height="28" Visibility="Collapsed"
+                    Background="{DynamicResource Brush.Bar}"
+                    BorderBrush="{DynamicResource Brush.Border}"
+                    BorderThickness="0,0,0,1">
+                <DockPanel LastChildFill="False" Margin="10,0">
+                    <TextBox x:Name="SearchBox" DockPanel.Dock="Left" Width="240" VerticalAlignment="Center"
+                             Style="{StaticResource SearchTextBox}"
+                             TextChanged="OnSearchTextChanged"
+                             KeyDown="OnSearchBoxKeyDown"
+                             AutomationProperties.Name="页内搜索"
+                             ToolTip="输入关键字后回车跳到下一处" />
+                    <TextBlock x:Name="SearchStatus" DockPanel.Dock="Left" VerticalAlignment="Center"
+                               Margin="10,0,0,0" Foreground="{DynamicResource Brush.TextDim}" Text="" />
+
+                    <Button DockPanel.Dock="Right" Style="{StaticResource SearchIconButton}"
+                            Click="OnSearchCloseClick" ToolTip="关闭搜索（Esc）"
+                            AutomationProperties.Name="关闭搜索">
+                        <Path Width="10" Height="10" Stretch="None"
+                              Stroke="{DynamicResource Brush.Text}" StrokeThickness="1.2"
+                              Data="M1,1 L9,9 M9,1 L1,9" />
+                    </Button>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource SearchIconButton}"
+                            Click="OnSearchNextClick" ToolTip="下一处（Enter）"
+                            AutomationProperties.Name="下一处">
+                        <Path Width="10" Height="10" Stretch="None"
+                              Stroke="{DynamicResource Brush.Text}" StrokeThickness="1.2"
+                              Data="M1.5,3.5 L5,7 L8.5,3.5 M5,1.5 L5,7" />
+                    </Button>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource SearchIconButton}"
+                            Click="OnSearchPrevClick" ToolTip="上一处（Shift+Enter）"
+                            AutomationProperties.Name="上一处">
+                        <Path Width="10" Height="10" Stretch="None"
+                              Stroke="{DynamicResource Brush.Text}" StrokeThickness="1.2"
+                              Data="M1.5,6.5 L5,3 L8.5,6.5 M5,8.5 L5,3" />
+                    </Button>
+                </DockPanel>
+            </Border>
+
+            <!-- ============ 底部状态栏 ============ -->
+            <Border DockPanel.Dock="Bottom"
+                    Background="{DynamicResource Brush.Bar}"
+                    BorderBrush="{DynamicResource Brush.Border}"
+                    BorderThickness="0,1,0,0"
+                    Height="24">
+                <DockPanel LastChildFill="False" Margin="10,0">
+                    <Button x:Name="TocToggleButton" DockPanel.Dock="Left"
+                            Style="{StaticResource GlassIconButton}"
+                            Click="OnToggleTocClick"
+                            ToolTip="显示 / 隐藏目录侧栏（Ctrl+T）">
+                        <Path Width="14" Height="10.5" Stretch="Uniform"
+                              Stroke="{DynamicResource Brush.TextDim}" StrokeThickness="1.3"
+                              Fill="Transparent"
+                              Data="M2.5,1 L13.5,1 A1.5,1.5 0 0 1 15,2.5 L15,9.5 A1.5,1.5 0 0 1 13.5,11 L2.5,11 A1.5,1.5 0 0 1 1,9.5 L1,2.5 A1.5,1.5 0 0 1 2.5,1 Z M5.5,1 L5.5,11" />
+                    </Button>
+                    <TextBlock x:Name="StatusPath" DockPanel.Dock="Left" VerticalAlignment="Center"
+                               FontSize="11.5" Foreground="{DynamicResource Brush.Text}" Text="未打开文件" />
+                    <TextBlock x:Name="StatusWords" DockPanel.Dock="Right" VerticalAlignment="Center"
+                               FontSize="11.5" Margin="8,0,0,0" Foreground="{DynamicResource Brush.TextDim}" Text="" />
+                    <TextBlock x:Name="StatusInfo" DockPanel.Dock="Right" VerticalAlignment="Center"
+                               FontSize="11.5" Foreground="{DynamicResource Brush.TextDim}" Text="" />
+                </DockPanel>
+            </Border>
+
+            <!-- ============ 主体：目录 + WebView2 ============ -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border x:Name="TocPanel" Grid.Column="0" Width="236" ClipToBounds="True"
+                        Background="{DynamicResource Brush.Toc}"
+                        BorderBrush="{DynamicResource Brush.Border}"
+                        BorderThickness="0,0,1,0"
+                        Visibility="Collapsed">
+                    <DockPanel>
+                        <DockPanel DockPanel.Dock="Top" Margin="14,11,14,4" LastChildFill="False">
+                            <TextBlock Text="目录" FontSize="11.5" Foreground="{DynamicResource Brush.TextDim}" />
+                            <!-- 侧栏返回：比顶栏/快捷键更直观的返回入口（用户点名要求） -->
+                            <Button x:Name="TocBackButton" DockPanel.Dock="Right" Click="OnBackClick" Visibility="Collapsed"
+                                    ToolTip="返回上一文档（Alt+←）" Focusable="False"
+                                    Width="24" Height="19" VerticalAlignment="Center">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="bd" Background="Transparent" CornerRadius="3">
+                                            <Path Data="M 10.5,3.5 L 5.5,8 L 10.5,12.5"
+                                                  Stroke="{DynamicResource Brush.Text}" StrokeThickness="1.6"
+                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.Hover}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </DockPanel>
+                        <TextBlock x:Name="TocEmpty" DockPanel.Dock="Top" Text="本文档没有目录（纯文本或无标题）"
+                                   Margin="14,0,14,6" FontSize="11.5" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource Brush.TextDim}" Visibility="Collapsed" />
+                        <ListBox x:Name="TocList" BorderThickness="0" Background="Transparent"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 Foreground="{DynamicResource Brush.Text}"
+                                 SelectionChanged="OnTocSelectionChanged">
+                            <ListBox.Resources>
+                                <Style TargetType="ScrollBar" BasedOn="{StaticResource ThinScrollBar}" />
+                            </ListBox.Resources>
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="9,3.5" />
+                                    <Setter Property="Margin" Value="6,0.5" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="ToolTip" Value="{Binding Text}" />
+                                    <Setter Property="Cursor" Value="Hand" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <Border x:Name="bd" Background="Transparent"
+                                                        CornerRadius="7" Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.Hover}" />
+                                                    </Trigger>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.Hover}" />
+                                                    </Trigger>
+                                                    <!-- 滚动联动：正文当前所在章节高亮（与选中态互不影响） -->
+                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Brush.Hover}" />
+                                                    </DataTrigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Text}" TextTrimming="CharacterEllipsis"
+                                               Margin="{Binding Indent}"
+                                               Foreground="{DynamicResource Brush.Text}" FontSize="12" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </Border>
+
+                <!-- 阅读区。底色由文档里那段内联样式显式给出（浅 #ffffff / 暗 #1e1e1e）。
+                     首帧前的底色在 InitializeWebViewAsync 里用代码设置
+                     （取 MarkdownRenderer.Light/DarkBackground，与页面/窗口同源），
+                     因此这里不再写 XAML 值——写了也会被代码覆盖，留着一个过期值只会误导人。 -->
+                <wv2:WebView2 x:Name="Web" Grid.Column="1" />
+            </Grid>
+        </DockPanel>
+    </Border>
+</Window>
