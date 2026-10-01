@@ -62,8 +62,10 @@ jobs:
     runs-on: windows-latest
     needs: []
     # hashFiles 不能用于 job 级 if（只允许 step 级，用了整个 workflow 解析失败——实测踩到）；
-    # 改用仓库名后缀区分：公开仓库 markdown-lite（无 sync-public.ps1）自动跳过，含 fork
-    if: (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main') && endsWith(github.repository, '/markdown-lite')
+    # 用仓库名后缀区分：**sync-public.ps1 只存在于私有仓库，所以守卫要匹配私有仓库**。
+    # ⚠️ 2026-10-01 修：原条件写成匹配 '/markdown-lite'（公开仓库），方向反了——
+    #    结果公开仓库照跑（没有 sync-public.ps1 必然失败）、私有仓库反而不跑。
+    if: (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main') && endsWith(github.repository, '/Markdown-E')
 
     steps:
       - name: 检出
