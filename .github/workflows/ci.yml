@@ -1,9 +1,10 @@
 name: CI
 
 on:
+  # 注意：push 下同时写 branches 和 tags 是「与」关系（一个推送不可能同时满足，
+  # 会得到 No jobs were run 的空跑——实测踩到）。因此 push 不加过滤，
+  # 改由各 job 的 if 精确控制：main/PR 跑构建测试，v* 标签跑发行。
   push:
-    branches: [ main ]
-    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -15,6 +16,8 @@ jobs:
   build-and-test:
     name: 构建与测试（Windows）
     runs-on: windows-latest
+    # main 分支推送、面向 main 的 PR、手动触发；标签推送只跑 release
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
 
     steps:
       - name: 检出
@@ -58,7 +61,7 @@ jobs:
     name: 公开子集校验
     runs-on: windows-latest
     needs: []
-    if: hashFiles('scripts/sync-public.ps1') != ''
+    if: (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main') && hashFiles('scripts/sync-public.ps1') != ''
 
     steps:
       - name: 检出
